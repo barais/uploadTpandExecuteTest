@@ -7,15 +7,41 @@ var tmp = require('tmp');
 var unzip = require('unzip');
 var child_process = require('child_process');
 var randomstring = require("randomstring");
+var nodemailer = require('nodemailer');
+
 
 var mavenhome = '/opt/apache-maven-3.2.3';
 var isScala = false;
+
+
+function sendEmail(content){
+  // create reusable transporter object using the default SMTP transport
+  var transporter = nodemailer.createTransport('smtps://user%40gmail.com:pass@smtp.gmail.com');
+
+  // setup e-mail data with unicode symbols
+  var mailOptions = {
+      from: '"Fred Foo ?" <foo@blurdybloop.com>', // sender address
+      to: 'bar@blurdybloop.com, baz@blurdybloop.com', // list of receivers
+      subject: 'Hello ✔', // Subject line
+      text: content // plaintext body
+      //html: '<b>Hello world ?</b>' // html body
+  };
+
+  // send mail with defined transport object
+  transporter.sendMail(mailOptions, function(error, info){
+      if(error){
+          return console.log(error);
+      }
+      console.log('Message sent: ' + info.response);
+  });
+}
 
 function getDirectories(srcpath) {
   return fs.readdirSync(srcpath).filter(function(file) {
     return fs.statSync(path.join(srcpath, file)).isDirectory();
   });
 }
+
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -80,7 +106,7 @@ app.post('/upload', function(req, res){
           if (err) throw err;
           console.log(data.toString());
           res.end(data.toString());
-
+          sendEmail(data.toString());
           console.log('will delete ' + tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name + ' ');
           var history = child_process.execSync('rm -rf '+ tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name, { encoding: 'utf8' });
           console.log(history);

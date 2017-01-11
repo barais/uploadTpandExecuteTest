@@ -12,6 +12,7 @@
     "express": "^4.13.3",
     "ffi": "^2.2.0",
     "formidable": "^1.0.17",
+    "nodemailer": "^2.7.0",
     "randomstring": "^1.1.5",
     "tmp": "0.0.31",
     "unzip": "^0.1.11"
