@@ -12,6 +12,7 @@ var nodemailer = require('nodemailer');
 
 var mavenhome = '/opt/apache-maven-3.2.3';
 var isScala = false;
+var sendEmail = false;
 
 
 function sendEmail(content){
@@ -106,10 +107,13 @@ app.post('/upload', function(req, res){
           if (err) throw err;
           console.log(data.toString());
           res.end(data.toString());
-          sendEmail(data.toString());
+
           console.log('will delete ' + tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name + ' ');
           var history = child_process.execSync('rm -rf '+ tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name, { encoding: 'utf8' });
           console.log(history);
+          if (sendEmail){
+            sendEmail(data.toString());
+          }
       });
     });
 
