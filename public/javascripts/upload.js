@@ -38,8 +38,11 @@ $('#upload-input').on('change', function(){
             $('#progress-bar-test1').width('0' + '%');
             $('#progress-bar-upload').html('done');
             $('#progress-bar-test').html('done');
+            console.log($('#myModal'));
+            $('#mymodalbody').html('<p>'+data.replace(/\n/g, "<br />")+'</p>');
+            $("#myModal").modal();
 
-            window.alert(data);
+ //            window.alert(data);
           }
       },
       xhr: function() {
@@ -59,7 +62,8 @@ $('#upload-input').on('change', function(){
 
             // once the upload reaches 100%, set the progress bar text to done
             if (percentComplete === 100) {
-              $('#progress-bar-upload').html('Executing test');
+              $('#progress-bar-upload').html('Done');
+              $('#progress-bar-test').html('Executing test');
             }
 
           }
