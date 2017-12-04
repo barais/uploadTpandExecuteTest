@@ -8,10 +8,14 @@ var unzip = require('unzip');
 var child_process = require('child_process');
 var randomstring = require("randomstring");
 var nodemailer = require('nodemailer');
+const glob = require('glob');
+const xml2js = require('xml2js');
+var jsel = require('jsel');
 
 
-var mavenhome = '/opt/apache-maven-3.2.3';
-var isScala = false;
+
+var mavenhome = '/opt/apache-maven-3.5.0/';
+var isScala = true;
 var sendEmail = false;
 
 
@@ -95,27 +99,61 @@ app.post('/upload', function(req, res){
         }
         ///opt/apache-maven-3.2.3/bin/mvn -f /home/barais/git/projetDelfine/pom.xml  clean test
         try {
-          var history = child_process.execSync(mavenhome + '/bin/mvn -f '+ tmpfolder1.name + '/pom.xml clean test' , { encoding: 'utf8' });
+          var history = child_process.execSync(mavenhome + '/bin/mvn -f '+ tmpfolder1.name + '/pom.xml clean scalastyle:check test' , { encoding: 'utf8' });
          } catch (e) {
           // console.log("Errors:", e);
          }
+        
+        var ntests = 0;
+        var nerrors = 0;
+        var nskips = 0;
+        var nfailures = 0;
 
-        var history = child_process.execSync('cat '+ tmpfolder1.name + '/target/surefire-reports/*.txt >' + tmpfolder2.name+'/output.txt', { encoding: 'utf8' });
-        console.log(history);
+        var files = glob.sync(path.join(tmpfolder1.name  , '/target/surefire-reports/*.xml'));
+        files.forEach(function(f) {
+             var data = fs.readFileSync(f) ;
+             var xml = parseSync(data);
+             ntests  = ntests+parseInt(xml.testsuite.$.tests);
+             nerrors= nerrors+parseInt(xml.testsuite.$.errors);
+             nskips = nskips+parseInt(xml.testsuite.$.skipped);
+             nfailures = nfailures +parseInt(xml.testsuite.$.failures);
+//                  resjson  = resjson+ JSON.stringify(xml);
+//                 });
+             //});
+         });
+         var data = fs.readFileSync(path.join(tmpfolder1.name  , '/scalastyle-output.xml')) ;
+         var xml = parseSync(data);
+         var dom = jsel(xml);
+         var warningstyle = dom.selectAll('(//*/@severity)').filter(word => word ==='warning').length
+         var errorstyle = dom.selectAll('(//*/@severity)').filter(word => word ==='error').length
+         //console.log(JSON.stringify(xml));
 
-        fs.readFile(tmpfolder2.name+'/output.txt', function (err, data) {
-          if (err) throw err;
-          console.log(data.toString());
-          res.end(data.toString());
+
+         
+         res.end('nombre de tests executés : ' + ntests+'<BR>'+
+         'nombre de tests en erreur : ' + nerrors+'<BR>'+
+         'nombre de tests non exécutés : ' + nskips+'<BR>'+
+         'nombre de tests en échec : ' + nfailures+'<BR>'+
+         'nombre de style (scalastyle) en warning : ' + warningstyle+'<BR>'+
+         'nombre de style (scalastyle) en erreur : ' + errorstyle+'<BR>'
+        );
+         
+//        var history = child_process.execSync('cat '+ tmpfolder1.name + '/target/surefire-reports/*.xml >' + tmpfolder2.name+'/output.xml', { encoding: 'utf8' });
+ //       console.log(history);
+
+ //       fs.readFile(tmpfolder2.name+'/output.xml', function (err, data) {
+//          if (err) throw err;
+//          console.log(data.toString());
+//          res.end(data.toString());
 
           console.log('will delete ' + tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name + ' ');
-          var history = child_process.execSync('rm -rf '+ tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name, { encoding: 'utf8' });
+        //  var history = child_process.execSync('rm -rf '+ tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name, { encoding: 'utf8' });
           console.log(history);
           if (sendEmail){
             sendEmail(data.toString());
           }
       });
-    });
+//    });
 
 
 
@@ -145,3 +183,29 @@ app.post('/upload', function(req, res){
 var server = app.listen(3000, function(){
   console.log('Server listening on port 3000');
 });
+
+
+function parseSync (xml) {
+  
+      // Like wtf? Why is this using a callback when it's not async? So pointless.
+      var error = null;
+      var json = null;
+      var parser = new xml2js.Parser({explicitArray : false});      
+      parser.parseString(xml, function (innerError, innerJson) {
+  
+          error = innerError;
+          json = innerJson;
+      });
+  
+      if (error) {
+  
+          throw error;
+      }
+  
+      if (!error && !json) {
+  
+          throw new Error('The callback was suddenly async or something.');
+      }
+  
+      return json;
+  }
