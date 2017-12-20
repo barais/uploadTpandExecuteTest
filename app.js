@@ -55,7 +55,8 @@ app.get('/', function(req, res){
 });
 
 app.post('/upload', function(req, res){
-
+  var error = false;
+  var errorcode =0;
   // create an incoming form object
   var form = new formidable.IncomingForm();
 
@@ -79,9 +80,9 @@ app.post('/upload', function(req, res){
         var tmpfolder = tmp.dirSync();
         var tmpfolder1 = tmp.dirSync();
         var tmpfolder2 = tmp.dirSync();
-        console.log('Dir1: ', tmpfolder.name);
-        console.log('Dir2: ', tmpfolder1.name);
-        console.log('Dir2: ', tmpfolder2.name);
+       // console.log('Dir1: ', tmpfolder.name);
+       // console.log('Dir2: ', tmpfolder1.name);
+//        console.log('Dir2: ', tmpfolder2.name);
         fs.createReadStream(path.join(form.uploadDir, file.name)).pipe(unzip.Extract({ path: tmpfolder.name })).on('close', function (entry) {
 
 
@@ -91,19 +92,73 @@ app.post('/upload', function(req, res){
         var dirProjet = getDirectories(tmpfolder.name)[0];
 
         if (isScala){
-          var history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/src/* '+tmpfolder1.name +'/src/main/scala/' , { encoding: 'utf8' });
+          try {
+            var history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/src/* '+tmpfolder1.name +'/src/main/scala/' , { encoding: 'utf8' });
+          } catch (e) {
+              error = true;
+              errorcode=1;
+          }
           console.log(history);
+          try {
+            history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/tests/* '+tmpfolder1.name +'/src/test/scala/' , { encoding: 'utf8' });
+        }catch (e) {
+          errorcode=2;
+          error = true;
+      }
+      
+          console.log(history);
+          try {
+            //TODO
+            history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/img '+tmpfolder1.name +'/src/main/resources/' , { encoding: 'utf8' });
+        }catch (e) {
+          errorcode=3;
+          error = true;
+      }
+      
+          console.log(history);
+          try {
+            history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/*.jar '+tmpfolder1.name +'/lib/' , { encoding: 'utf8' });
+        }catch (e) {
+          error = true;
+          errorcode=4;            
+          //          continue;
+      }
+      
+          console.log(history);
+          
         }else{
-          var history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/src/* '+tmpfolder1.name +'/src/main/java/' , { encoding: 'utf8' });
-          console.log(history);
+          try {
+            var history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/src/* '+tmpfolder1.name +'/src/main/java/' , { encoding: 'utf8' });
+          }catch (e) {
+            errorcode=1;            
+            error = true;
+  //          continue;
+        }
+            console.log(history);
         }
         ///opt/apache-maven-3.2.3/bin/mvn -f /home/barais/git/projetDelfine/pom.xml  clean test
+
+        var files = glob.sync(path.join(tmpfolder1.name  , '/lib/*.jar'));
+        var replacement = '';
+        var libn = 0;
+        files.forEach(function(f) { 
+          replacement = replacement+ "<dependency><artifactId>delfinelib"+libn+"</artifactId><groupId>delfinelib</groupId><version>1.0</version><scope>system</scope><systemPath>${project.basedir}/lib/"+path.basename(f)+"</systemPath></dependency>"
+          libn = libn+1;
+        });
+        data = fs.readFileSync(path.join(tmpfolder1.name + '/pom.xml'), 'utf8'); 
+        //console.log(replacement);
+        var result = data.replace('<!--deps-->', replacement  );        
+//        console.log(result);     
+        fs.writeFileSync(path.join(tmpfolder1.name + '/pom.xml'), result, 'utf8');
+
         try {
-          var history = child_process.execSync(mavenhome + '/bin/mvn -f '+ tmpfolder1.name + '/pom.xml clean scalastyle:check test' , { encoding: 'utf8' });
+          var history = child_process.execSync(mavenhome + '/bin/mvn -f'+ tmpfolder1.name + '/pom.xml clean scalastyle:check test -Dmaven.test.failure.ignore=true' , { encoding: 'utf8' });
          } catch (e) {
-          // console.log("Errors:", e);
+           console.log(e);
+          error = true;
+          errorcode=5;          
          }
-        
+         
         var ntests = 0;
         var nerrors = 0;
         var nskips = 0;
@@ -117,27 +172,49 @@ app.post('/upload', function(req, res){
              nerrors= nerrors+parseInt(xml.testsuite.$.errors);
              nskips = nskips+parseInt(xml.testsuite.$.skipped);
              nfailures = nfailures +parseInt(xml.testsuite.$.failures);
-//                  resjson  = resjson+ JSON.stringify(xml);
-//                 });
-             //});
          });
-         var data = fs.readFileSync(path.join(tmpfolder1.name  , '/scalastyle-output.xml')) ;
-         var xml = parseSync(data);
-         var dom = jsel(xml);
-         var warningstyle = dom.selectAll('(//*/@severity)').filter(word => word ==='warning').length
-         var errorstyle = dom.selectAll('(//*/@severity)').filter(word => word ==='error').length
+
+         if (fs.existsSync(path.join(tmpfolder1.name  , '/scalastyle-output.xml'))) {
+    // Do something
+            var data = fs.readFileSync(path.join(tmpfolder1.name  , '/scalastyle-output.xml')) ;
+            var xml = parseSync(data);
+            var dom = jsel(xml);
+            var warningstyle = dom.selectAll('(//*/@severity)').filter(word => word ==='warning').length
+            var errorstyle = dom.selectAll('(//*/@severity)').filter(word => word ==='error').length
          //console.log(JSON.stringify(xml));
+         }else{
+          errorcode=6;
+           error = true;
+         }
+         if (!error){
+         
+          res.end('nombre de tests executés : ' + ntests+'<BR>'+
+          'nombre de tests en erreur : ' + nerrors+'<BR>'+
+          'nombre de tests non exécutés : ' + nskips+'<BR>'+
+          'nombre de tests en échec : ' + nfailures+'<BR>'+
+          'nombre de style (scalastyle) en warning : ' + warningstyle+'<BR>'+
+          'nombre de style (scalastyle) en erreur : ' + errorstyle+'<BR>'
+          );
+        }else{
+          if (errorcode==0){
+            res.end('Projet en erreur');            
+          } else if (errorcode==1){
+            res.end('Projet en erreur pas de sources');            
+          } else if (errorcode==2){
+            res.end('Projet en erreur pas de tests');            
+          }else if (errorcode==3){
+            res.end('Projet en erreur pas d\'images');            
+          }else if (errorcode==4){
+            res.end('Projet en erreur pas de librairies');            
+          }else if (errorcode==5){
+            res.end('Projet en erreur ne compile pas. Erreur exécution maven');            
+          }else if (errorcode==6){
+            res.end('Projet en erreur, pas d\'exécution du check syntaxique');            
+          }
 
 
-         
-         res.end('nombre de tests executés : ' + ntests+'<BR>'+
-         'nombre de tests en erreur : ' + nerrors+'<BR>'+
-         'nombre de tests non exécutés : ' + nskips+'<BR>'+
-         'nombre de tests en échec : ' + nfailures+'<BR>'+
-         'nombre de style (scalastyle) en warning : ' + warningstyle+'<BR>'+
-         'nombre de style (scalastyle) en erreur : ' + errorstyle+'<BR>'
-        );
-         
+          
+        }
 //        var history = child_process.execSync('cat '+ tmpfolder1.name + '/target/surefire-reports/*.xml >' + tmpfolder2.name+'/output.xml', { encoding: 'utf8' });
  //       console.log(history);
 
@@ -146,8 +223,8 @@ app.post('/upload', function(req, res){
 //          console.log(data.toString());
 //          res.end(data.toString());
 
-          console.log('will delete ' + tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name + ' ');
-        //  var history = child_process.execSync('rm -rf '+ tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name, { encoding: 'utf8' });
+        //  console.log('will delete ' + tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name + ' ');
+          var history = child_process.execSync('rm -rf '+ tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name, { encoding: 'utf8' });
           console.log(history);
           if (sendEmail){
             sendEmail(data.toString());
