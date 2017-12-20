@@ -1,10 +1,9 @@
 var express = require('express');
-var app = express();
 var path = require('path');
 var formidable = require('formidable');
 var fs = require('fs');
 var tmp = require('tmp');
-var unzip = require('unzip');
+var extract = require('extract-zip');
 var child_process = require('child_process');
 var randomstring = require("randomstring");
 var nodemailer = require('nodemailer');
@@ -12,6 +11,8 @@ const glob = require('glob');
 const xml2js = require('xml2js');
 var jsel = require('jsel');
 
+
+var app = express();
 
 
 var mavenhome = '/opt/apache-maven-3.5.0/';
@@ -83,7 +84,9 @@ app.post('/upload', function(req, res){
        // console.log('Dir1: ', tmpfolder.name);
        // console.log('Dir2: ', tmpfolder1.name);
 //        console.log('Dir2: ', tmpfolder2.name);
-        fs.createReadStream(path.join(form.uploadDir, file.name)).pipe(unzip.Extract({ path: tmpfolder.name })).on('close', function (entry) {
+      extract(path.join(form.uploadDir, file.name), {dir: tmpfolder.name}, function (err) {
+       // extraction is complete. make sure to handle the err
+    
 
 
         var history = child_process.execSync('cp -r templateProjet/* '+ tmpfolder1.name, { encoding: 'utf8' });
@@ -91,6 +94,7 @@ app.post('/upload', function(req, res){
 
         var dirProjet = getDirectories(tmpfolder.name)[0];
 
+        if (dirProjet !=null){
         if (isScala){
           try {
             var history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/src/* '+tmpfolder1.name +'/src/main/scala/' , { encoding: 'utf8' });
@@ -100,6 +104,7 @@ app.post('/upload', function(req, res){
           }
           console.log(history);
           try {
+            
             history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/tests/* '+tmpfolder1.name +'/src/test/scala/' , { encoding: 'utf8' });
         }catch (e) {
           errorcode=2;
@@ -108,8 +113,9 @@ app.post('/upload', function(req, res){
       
           console.log(history);
           try {
-            //TODO
-            history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/img '+tmpfolder1.name +'/src/main/resources/' , { encoding: 'utf8' });
+            if (fs.existsSync(path.join(tmpfolder.name + '/'+dirProjet+'/img'))) {          
+              history = child_process.execSync('cp -r '+ tmpfolder.name + '/'+dirProjet+'/img '+tmpfolder1.name +'/src/main/resources/' , { encoding: 'utf8' });
+            }
         }catch (e) {
           errorcode=3;
           error = true;
@@ -136,6 +142,10 @@ app.post('/upload', function(req, res){
         }
             console.log(history);
         }
+      }else{
+        res.end('Bad zip');
+        return;        
+      }
         ///opt/apache-maven-3.2.3/bin/mvn -f /home/barais/git/projetDelfine/pom.xml  clean test
 
         var files = glob.sync(path.join(tmpfolder1.name  , '/lib/*.jar'));
@@ -212,7 +222,7 @@ app.post('/upload', function(req, res){
             res.end('Projet en erreur, pas d\'exécution du check syntaxique');            
           }
 
-
+          
           
         }
 //        var history = child_process.execSync('cat '+ tmpfolder1.name + '/target/surefire-reports/*.xml >' + tmpfolder2.name+'/output.xml', { encoding: 'utf8' });

@@ -10,13 +10,14 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.13.3",
+    "extract-zip": "^1.6.6",
     "ffi": "^2.2.0",
     "formidable": "^1.0.17",
     "jsel": "^1.1.6",
     "nodemailer": "^2.7.0",
     "randomstring": "^1.1.5",
     "tmp": "0.0.31",
-    "unzip": "^0.1.11",
-    "xml2js": "^0.4.19"
+    "xml2js": "^0.4.19",
+    "zlib": "^1.0.5"
   }
 }
