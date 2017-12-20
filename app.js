@@ -235,6 +235,7 @@ app.post('/upload', function(req, res){
 
         //  console.log('will delete ' + tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name + ' ');
           var history = child_process.execSync('rm -rf '+ tmpfolder.name + ' '+tmpfolder1.name + ' '+tmpfolder2.name, { encoding: 'utf8' });
+          fs.unlinkSync(path.join(form.uploadDir, file.name));
           console.log(history);
           if (sendEmail){
             sendEmail(data.toString());
